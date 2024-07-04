@@ -13,6 +13,7 @@ import (
 	"gioui.org/op/paint"
 	"gioui.org/widget/material"
 	"github.com/vypal/vedit/ui/editor"
+	"github.com/vypal/vedit/ui/widgets"
 )
 
 func main() {
@@ -27,41 +28,47 @@ func main() {
 	app.Main()
 }
 
-/*
 var LayoutManager = widgets.NewLayoutManager()
+var edit *editor.Editor
 
-	func exampleSplit(th *material.Theme) {
-		rootsplit := LayoutManager.AddSplit(nil, widgets.Vertical, 0.7, nil)
-		LayoutManager.AddSplit(LayoutManager.RootSplit, widgets.Vertical, 0.5, func(gtx layout.Context) layout.Dimensions {
-			editor := editor.NewEditor(th.Shaper)
-			return editor.Layout(gtx, th)
-		})
-		rsplit := LayoutManager.AddSplit(LayoutManager.RootSplit, widgets.Horizontal, 0.5, nil)
-		LayoutManager.AddSplit(rsplit, widgets.Horizontal, 0.5, func(gtx layout.Context) layout.Dimensions {
-			return FillWithLabel(gtx, th, "Top", color.NRGBA{G: 0x80, A: 0xff})
-		})
-		LayoutManager.AddSplit(rsplit, widgets.Horizontal, 0.5, func(gtx layout.Context) layout.Dimensions {
-			return FillWithLabel(gtx, th, "Bottom", color.NRGBA{B: 0x80, A: 0xff})
-		})
-		rootsplit.MinSize = 100
-	}
-*/
+func exampleSplit(th *material.Theme) {
+	edit = editor.NewEditor(th.Shaper)
+	// Vytvoření kořenového rozdělení
+	rootsplit := LayoutManager.AddSplit(nil, widgets.Horizontal, 0.1, nil)
+
+	// Přidání editoru do kořenového rozdělení
+	LayoutManager.AddSplit(rootsplit, widgets.Vertical, 0, func(gtx layout.Context) layout.Dimensions {
+		return FillWithLabel(gtx, th, "Navbar", color.NRGBA{R: 0x1a, G: 0x1b, B: 0x1b, A: 0xff})
+	})
+
+	// Vytvoření a přidání dalších rozdělení a komponent
+	bsplit := LayoutManager.AddSplit(rootsplit, widgets.Vertical, -0.5, nil)
+	LayoutManager.AddSplit(bsplit, widgets.Horizontal, 0.5, func(gtx layout.Context) layout.Dimensions {
+		return FillWithLabel(gtx, th, "Files", color.NRGBA{R: 0x1a, G: 0x1b, B: 0x1b, A: 0xff})
+	})
+	LayoutManager.AddSplit(bsplit, widgets.Horizontal, 0.5, func(gtx layout.Context) layout.Dimensions {
+		return edit.Layout(gtx, th)
+	})
+
+	// Nastavení minimální velikosti pro kořenové rozdělení
+	rootsplit.Fixed = true
+}
+
 func run(window *app.Window) error {
 	theme := material.NewTheme()
-	editor := editor.NewEditor(theme.Shaper)
-	//exampleSplit(theme)
+	exampleSplit(theme)
 	var ops op.Ops
 	for {
+
 		switch e := window.Event().(type) {
 		case app.DestroyEvent:
 			return e.Err
 		case app.FrameEvent:
+			paint.Fill(&ops, color.NRGBA{R: 0x1a, G: 0x1b, B: 0x1b, A: 0xff})
 			// This graphics context is used for managing the rendering state.
 			gtx := app.NewContext(&ops, e)
 
-			editor.Layout(gtx, theme)
-
-			//LayoutManager.Layout(gtx)
+			LayoutManager.Layout(gtx)
 
 			// Pass the drawing operations to the GPU.
 			e.Frame(&ops)

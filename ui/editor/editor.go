@@ -38,7 +38,7 @@ func NewEditor(shaper *text.Shaper) *Editor {
 		fontSize:     unit.Sp(22),
 		lineHeight:   unit.Sp(26),
 		textColor:    color.NRGBA{R: 0, G: 0, B: 0, A: 255},
-		bgColor:      color.NRGBA{R: 255, G: 255, B: 255, A: 255},
+		bgColor:      color.NRGBA{R: 0x1A, G: 0x1B, B: 0x1B, A: 255},
 		lineNumColor: color.NRGBA{R: 150, G: 150, B: 150, A: 255},
 		shaper:       shaper,
 		focused:      true,
@@ -48,10 +48,12 @@ func NewEditor(shaper *text.Shaper) *Editor {
 func (e *Editor) Layout(gtx layout.Context, th *material.Theme) layout.Dimensions {
 	event.Op(gtx.Ops, e)
 	for {
-		ev, ok := gtx.Event(key.Filter{Focus: nil, Optional: key.ModShift})
+		ev, ok := gtx.Event(key.Filter{Focus: nil, Optional: key.ModAlt | key.ModCommand | key.ModShift | key.ModSuper | key.ModCtrl})
 		if !ok {
 			break
 		}
+		fmt.Println(ev)
+		fmt.Printf("%T\n", ev)
 		switch ev := ev.(type) {
 		case key.FocusEvent:
 			e.focused = ev.Focus
@@ -202,16 +204,19 @@ func (e *Editor) HandleKey(ev key.Event) {
 		case key.NameDeleteForward:
 			e.delete()
 		default:
-			if ev.Modifiers == 0 && unicode.IsPrint(rune(ev.Name[0])) && ev.Name != "Shift" && ev.Name != "Space" {
-				e.Insert(strings.ToLower(string(ev.Name)))
-			} else if ev.Modifiers == 0 && ev.Name == "Space" {
-				e.Insert(" ")
-
-			} else if ev.Modifiers.Contain(key.ModShift) && unicode.IsPrint(rune(ev.Name[0])) {
-				e.Insert(strings.ToUpper(string(ev.Name)))
+			text := keyEventToText(ev)
+			if text != "" {
+				e.Insert(text)
 			}
 		}
 	}
+}
+
+func keyEventToText(ev key.Event) string {
+	if ev.Modifiers == 0 && unicode.IsPrint(rune(ev.Name[0])) {
+		return string(ev.Name)
+	}
+	return ""
 }
 
 func (e *Editor) MoveCursor(pos int) {

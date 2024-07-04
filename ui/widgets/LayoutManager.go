@@ -2,12 +2,14 @@ package widgets
 
 import (
 	"image"
+	"image/color"
 
 	"gioui.org/io/event"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
+	"gioui.org/op/paint"
 	"gioui.org/unit"
 )
 
@@ -18,8 +20,8 @@ const (
 	Horizontal
 )
 
-const defaultBarWidth = unit.Dp(10)
-const defaultBarHeight = unit.Dp(10)
+const defaultBarWidth = unit.Dp(2)
+const defaultBarHeight = unit.Dp(2)
 
 type Split struct {
 	Direction   Direction
@@ -53,7 +55,10 @@ func (lm *LayoutManager) Layout(gtx layout.Context) layout.Dimensions {
 func (lm *LayoutManager) layoutSplit(gtx layout.Context, split *Split) layout.Dimensions {
 	if split.FirstChild == nil || split.SecondChild == nil {
 		if split.Widget != nil {
-			return split.Widget(gtx)
+			stack := clip.Rect(image.Rectangle{Max: gtx.Constraints.Max}).Push(gtx.Ops)
+			dims := split.Widget(gtx)
+			stack.Pop()
+			return dims
 		}
 		return layout.Dimensions{}
 	}
@@ -90,10 +95,7 @@ func (lm *LayoutManager) layoutFlexSplit(gtx layout.Context, axis layout.Axis, s
 		secondSize = gtx.Constraints.Max.Y - secondOffset
 	}
 
-	// Handle input for resizing if split is not fixed
-	if !split.Fixed {
-		split.handleInput(gtx, axis, firstSize)
-	}
+	split.handleInput(gtx, axis, firstSize)
 
 	// Layout first child
 	{
@@ -132,63 +134,69 @@ func (split *Split) handleInput(gtx layout.Context, axis layout.Axis, firstSize 
 		barRect = image.Rect(0, firstSize, gtx.Constraints.Max.X, firstSize+gtx.Dp(defaultBarHeight))
 	}
 
-	// Create an area for pointer input
+	var barColor = color.NRGBA{R: 0x5A, G: 0x72, B: 0xB2, A: 0xFF} // Světlá šedá
+
+	// Vytvoření oblasti pro vstup ukazatele (již existuje ve vašem kódu)
 	area := clip.Rect(barRect).Push(gtx.Ops)
-	pointer.PassOp.Push(pointer.PassOp{}, gtx.Ops)
-	event.Op(gtx.Ops, split)
 
-	if axis == layout.Vertical {
-		pointer.CursorColResize.Add(gtx.Ops)
-	} else {
-		pointer.CursorRowResize.Add(gtx.Ops)
-	}
+	// Přidání kódu pro vykreslení pruhu s barvou
+	paint.ColorOp{Color: barColor}.Add(gtx.Ops)
+	paint.PaintOp{}.Add(gtx.Ops)
 
-	// Handle pointer events
-	for {
-		e, ok := gtx.Event(pointer.Filter{
-			Target: split,
-			Kinds:  pointer.Press | pointer.Drag | pointer.Release | pointer.Cancel,
-		})
-		if !ok {
-			break
+	if !split.Fixed {
+		pointer.PassOp.Push(pointer.PassOp{}, gtx.Ops)
+		event.Op(gtx.Ops, split)
+		if axis == layout.Vertical {
+			pointer.CursorColResize.Add(gtx.Ops)
+		} else {
+			pointer.CursorRowResize.Add(gtx.Ops)
 		}
+		for {
+			e, ok := gtx.Event(pointer.Filter{
+				Target: split,
+				Kinds:  pointer.Press | pointer.Drag | pointer.Release | pointer.Cancel,
+			})
+			if !ok {
+				break
+			}
 
-		switch e := e.(type) {
-		case pointer.Event:
-			switch e.Kind {
-			case pointer.Press:
-				if split.dragging {
-					break
-				}
-				split.dragging = true
-				split.dragX = e.Position.X
-				split.dragY = e.Position.Y
-				split.dragID = e.PointerID
-			case pointer.Drag:
-				if e.PointerID != split.dragID {
-					break
-				}
-				if axis == layout.Vertical {
-					deltaX := e.Position.X - split.dragX
+			switch e := e.(type) {
+			case pointer.Event:
+				switch e.Kind {
+				case pointer.Press:
+					if split.dragging {
+						break
+					}
+					split.dragging = true
 					split.dragX = e.Position.X
-
-					deltaRatio := float32(deltaX) * 2 / float32(gtx.Constraints.Max.X)
-					split.Ratio += deltaRatio
-				} else {
-					deltaY := e.Position.Y - split.dragY
 					split.dragY = e.Position.Y
+					split.dragID = e.PointerID
+				case pointer.Drag:
+					if e.PointerID != split.dragID {
+						break
+					}
+					if axis == layout.Vertical {
+						deltaX := e.Position.X - split.dragX
+						split.dragX = e.Position.X
 
-					deltaRatio := float32(deltaY) / float32(gtx.Constraints.Max.Y)
-					split.Ratio += deltaRatio
+						deltaRatio := float32(deltaX) * 2 / float32(gtx.Constraints.Max.X)
+						split.Ratio += deltaRatio
+					} else {
+						deltaY := e.Position.Y - split.dragY
+						split.dragY = e.Position.Y
+
+						deltaRatio := float32(deltaY) / float32(gtx.Constraints.Max.Y)
+						split.Ratio += deltaRatio
+					}
+					if e.Priority < pointer.Grabbed {
+						gtx.Execute(pointer.GrabCmd{
+							Tag: split,
+							ID:  split.dragID,
+						})
+					}
+				case pointer.Release, pointer.Cancel:
+					split.dragging = false
 				}
-				if e.Priority < pointer.Grabbed {
-					gtx.Execute(pointer.GrabCmd{
-						Tag: split,
-						ID:  split.dragID,
-					})
-				}
-			case pointer.Release, pointer.Cancel:
-				split.dragging = false
 			}
 		}
 	}
