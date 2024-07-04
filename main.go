@@ -27,18 +27,26 @@ func main() {
 	app.Main()
 }
 
-var vsplit widgets.VSplit
+var LayoutManager = widgets.NewLayoutManager()
 
-func exampleSplit(gtx layout.Context, th *material.Theme) layout.Dimensions {
-	return vsplit.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+func exampleSplit(th *material.Theme) {
+	rootsplit := LayoutManager.AddSplit(nil, widgets.Vertical, 0.5, nil)
+	LayoutManager.AddSplit(LayoutManager.RootSplit, widgets.Vertical, 0.5, func(gtx layout.Context) layout.Dimensions {
 		return FillWithLabel(gtx, th, "Left", color.NRGBA{R: 0x80, A: 0xff})
-	}, func(gtx layout.Context) layout.Dimensions {
-		return FillWithLabel(gtx, th, "Right", color.NRGBA{B: 0x80, A: 0xff})
 	})
+	rsplit := LayoutManager.AddSplit(LayoutManager.RootSplit, widgets.Horizontal, 0.5, nil)
+	LayoutManager.AddSplit(rsplit, widgets.Horizontal, 0.5, func(gtx layout.Context) layout.Dimensions {
+		return FillWithLabel(gtx, th, "Top", color.NRGBA{G: 0x80, A: 0xff})
+	})
+	LayoutManager.AddSplit(rsplit, widgets.Horizontal, 0.5, func(gtx layout.Context) layout.Dimensions {
+		return FillWithLabel(gtx, th, "Bottom", color.NRGBA{B: 0x80, A: 0xff})
+	})
+	rootsplit.MinSize = 100
 }
 
 func run(window *app.Window) error {
 	theme := material.NewTheme()
+	exampleSplit(theme)
 	var ops op.Ops
 	for {
 		switch e := window.Event().(type) {
@@ -48,10 +56,10 @@ func run(window *app.Window) error {
 			// This graphics context is used for managing the rendering state.
 			gtx := app.NewContext(&ops, e)
 
-			exampleSplit(gtx, theme)
+			LayoutManager.Layout(gtx)
 
 			// Pass the drawing operations to the GPU.
-			e.Frame(gtx.Ops)
+			e.Frame(&ops)
 		}
 	}
 }

@@ -21,8 +21,6 @@ type VSplit struct {
 	dragX  float32
 }
 
-const defaultBarWidth = unit.Dp(10)
-
 func (s *VSplit) Layout(gtx layout.Context, left, right layout.Widget) layout.Dimensions {
 	bar := gtx.Dp(s.Bar)
 	if bar <= 1 {
