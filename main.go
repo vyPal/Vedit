@@ -13,6 +13,7 @@ import (
 	"gioui.org/op/paint"
 	"gioui.org/widget/material"
 	"github.com/vypal/vedit/ui/editor"
+	"github.com/vypal/vedit/ui/toolbar"
 	"github.com/vypal/vedit/ui/widgets"
 )
 
@@ -33,12 +34,18 @@ var edit *editor.Editor
 
 func exampleSplit(th *material.Theme) {
 	edit = editor.NewEditor(th.Shaper)
+	toolbar := toolbar.ToolBar{
+		Items: []toolbar.ToolBarItem{
+			&toolbar.Button{Text: "New", Theme: th},
+		},
+		BackgroundColor: color.NRGBA{R: 0x1a, G: 0x1b, B: 0x1b, A: 0xff},
+	}
 	// Vytvoření kořenového rozdělení
-	rootsplit := LayoutManager.AddSplit(nil, widgets.Horizontal, 0.1, nil)
+	rootsplit := LayoutManager.AddSplit(nil, widgets.Horizontal, 0.075, nil)
 
 	// Přidání editoru do kořenového rozdělení
 	LayoutManager.AddSplit(rootsplit, widgets.Vertical, 0, func(gtx layout.Context) layout.Dimensions {
-		return FillWithLabel(gtx, th, "Navbar", color.NRGBA{R: 0x1a, G: 0x1b, B: 0x1b, A: 0xff})
+		return toolbar.Layout(gtx)
 	})
 
 	// Vytvoření a přidání dalších rozdělení a komponent
