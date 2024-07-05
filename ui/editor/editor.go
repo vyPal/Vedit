@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode"
 
+	"gioui.org/font"
 	"gioui.org/io/event"
 	"gioui.org/io/key"
 	"gioui.org/layout"
@@ -16,32 +17,35 @@ import (
 	"gioui.org/text"
 	"gioui.org/unit"
 	"gioui.org/widget/material"
+	"golang.org/x/image/math/fixed"
 )
 
 type Editor struct {
-	content      []rune
-	cursor       int
-	scrollOffset int
-	fontSize     unit.Sp
-	lineHeight   unit.Sp
-	textColor    color.NRGBA
-	bgColor      color.NRGBA
-	lineNumColor color.NRGBA
-	shaper       *text.Shaper
-	focused      bool
+	content         []rune
+	cursor          int
+	scrollOffset    int
+	fontSize        unit.Sp
+	lineHeight      unit.Sp
+	textColor       color.NRGBA
+	textColorDarker color.NRGBA
+	bgColor         color.NRGBA
+	lineNumColor    color.NRGBA
+	shaper          *text.Shaper
+	focused         bool
 }
 
 func NewEditor(shaper *text.Shaper) *Editor {
 	return &Editor{
-		content:      []rune{},
-		cursor:       0,
-		fontSize:     unit.Sp(22),
-		lineHeight:   unit.Sp(26),
-		textColor:    color.NRGBA{R: 0, G: 0, B: 0, A: 255},
-		bgColor:      color.NRGBA{R: 0x1A, G: 0x1B, B: 0x1B, A: 255},
-		lineNumColor: color.NRGBA{R: 150, G: 150, B: 150, A: 255},
-		shaper:       shaper,
-		focused:      true,
+		content:         []rune{},
+		cursor:          0,
+		fontSize:        unit.Sp(22),
+		lineHeight:      unit.Sp(26),
+		textColor:       color.NRGBA{R: 0xD3, G: 0xD2, B: 0xD1, A: 255},
+		textColorDarker: color.NRGBA{R: 0xA3, G: 0xA4, B: 0xA5, A: 255},
+		bgColor:         color.NRGBA{R: 0x1A, G: 0x1B, B: 0x1B, A: 255},
+		lineNumColor:    color.NRGBA{R: 125, G: 125, B: 125, A: 125},
+		shaper:          shaper,
+		focused:         true,
 	}
 }
 
@@ -52,8 +56,6 @@ func (e *Editor) Layout(gtx layout.Context, th *material.Theme) layout.Dimension
 		if !ok {
 			break
 		}
-		fmt.Println(ev)
-		fmt.Printf("%T\n", ev)
 		switch ev := ev.(type) {
 		case key.FocusEvent:
 			e.focused = ev.Focus
@@ -99,8 +101,8 @@ func (e *Editor) drawContent(gtx layout.Context, th *material.Theme, lines []str
 			break
 		}
 		line := lines[lineNum]
-		lbl := material.Label(th, e.fontSize, line)
-		lbl.Color = e.textColor
+		lbl := material.Label(th, e.fontSize, strings.ReplaceAll(line, "\t", "    "))
+		lbl.Color = e.textColorDarker
 
 		// Create a new context with adjusted constraints
 		/* textGtx := gtx
@@ -123,25 +125,41 @@ func (e *Editor) drawCursor(gtx layout.Context, th *material.Theme, xOffset floa
 
 	lines := e.getLines()
 	cursorX := int(xOffset)
+	cursorXOffset := 0
 	if cursorCol > 0 && cursorLine < len(lines) {
 		line := lines[cursorLine][:cursorCol]
-		lbl := material.Label(th, e.fontSize, line)
+		lbl := material.Label(th, e.fontSize, strings.ReplaceAll(line, "\t", "    "))
+		lbl.Color = e.textColor
 		stack := op.Offset(image.Point{X: cursorX - gtx.Constraints.Max.X, Y: (cursorLine - e.scrollOffset) * int(e.lineHeight)}).Push(gtx.Ops)
-		dims := lbl.Layout(gtx)
+		lbl.Layout(gtx)
+		cursorXOffset = int(measureTextWidth(th, line, e.fontSize))
 		stack.Pop()
-		cursorX += dims.Size.X
 	}
 
 	cursorY := (cursorLine - e.scrollOffset) * int(e.lineHeight)
 
-	cursorColor := color.NRGBA{R: 0, G: 0, B: 0, A: 255}
+	cursorColor := color.NRGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 255}
 	paint.FillShape(gtx.Ops,
 		cursorColor,
 		clip.Rect{
-			Min: image.Point{X: cursorX, Y: cursorY},
-			Max: image.Point{X: cursorX + 2, Y: cursorY + int(e.lineHeight)},
+			Min: image.Point{X: cursorX + cursorXOffset - gtx.Constraints.Max.X, Y: cursorY},
+			Max: image.Point{X: cursorX + cursorXOffset - gtx.Constraints.Max.X + 2, Y: cursorY + int(e.lineHeight)},
 		}.Op(),
 	)
+}
+
+func measureTextWidth(th *material.Theme, str string, size unit.Sp) float32 {
+	sh := th.Shaper
+	sh.Layout(text.Parameters{Font: font.Font{Typeface: th.Face}, PxPerEm: fixed.Int26_6(size)}, strings.NewReader(str))
+	var width float32
+	for {
+		glyph, ok := sh.NextGlyph()
+		if !ok {
+			break
+		}
+		width += float32(glyph.Bounds.Max.X) - float32(glyph.Bounds.Min.X)
+	}
+	return width / 2
 }
 
 /* func (e *Editor) drawCursor(gtx layout.Context, th *material.Theme, xOffset float32) {
@@ -209,12 +227,23 @@ func (e *Editor) HandleKey(ev key.Event) {
 				e.Insert(text)
 			}
 		}
+	case key.Release:
+		if ev.Name == "Tab" {
+			e.Insert("\t")
+		}
 	}
 }
 
 func keyEventToText(ev key.Event) string {
 	if ev.Modifiers == 0 && unicode.IsPrint(rune(ev.Name[0])) {
-		return string(ev.Name)
+		if ev.Name == "Space" {
+			return " "
+		} else if ev.Name == "Shift" {
+			return ""
+		}
+		return string(unicode.ToLower(rune(ev.Name[0])))
+	} else if ev.Modifiers == key.ModShift && unicode.IsPrint(rune(ev.Name[0])) {
+		return string(unicode.ToUpper(rune(ev.Name[0])))
 	}
 	return ""
 }
