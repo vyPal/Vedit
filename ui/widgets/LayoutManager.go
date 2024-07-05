@@ -134,12 +134,17 @@ func (split *Split) handleInput(gtx layout.Context, axis layout.Axis, firstSize 
 		barRect = image.Rect(0, firstSize, gtx.Constraints.Max.X, firstSize+gtx.Dp(defaultBarHeight))
 	}
 
-	var barColor = color.NRGBA{R: 0x5A, G: 0x72, B: 0xB2, A: 0xFF} // Světlá šedá
+	var barColor = color.NRGBA{R: 0x5A, G: 0x72, B: 0xB2, A: 0xFF}
 
-	// Vytvoření oblasti pro vstup ukazatele (již existuje ve vašem kódu)
-	area := clip.Rect(barRect).Push(gtx.Ops)
+	var expandedBarRect image.Rectangle
+	if axis == layout.Vertical {
+		expandedBarRect = image.Rect(barRect.Min.X-5, barRect.Min.Y, barRect.Max.X+5, barRect.Max.Y)
+	} else {
+		expandedBarRect = image.Rect(barRect.Min.X, barRect.Min.Y-5, barRect.Max.X, barRect.Max.Y+5)
+	}
 
-	// Přidání kódu pro vykreslení pruhu s barvou
+	area := clip.Rect(expandedBarRect).Push(gtx.Ops)
+
 	paint.ColorOp{Color: barColor}.Add(gtx.Ops)
 	paint.PaintOp{}.Add(gtx.Ops)
 
